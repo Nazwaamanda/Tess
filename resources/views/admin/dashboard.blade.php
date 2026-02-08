@@ -39,9 +39,17 @@
             <h1 class="text-2xl font-bold text-[#064e3b]">Dashboard Keuangan</h1>
             <p class="text-[#047857]/80 text-sm mt-1">Ringkasan kinerja keuangan berdasarkan data terbaru.</p>
         </div>
-        <div class="flex items-center gap-2 bg-[#ecfdf5] px-4 py-2 rounded-xl border border-[#34d399]/30 shadow-sm text-[#0d9488]">
-            <i class="far fa-calendar-alt"></i>
-            <span class="text-sm font-semibold">{{ \Carbon\Carbon::now()->isoFormat('D MMMM Y') }}</span>
+        <div class="flex items-center gap-3">
+            {{-- TOMBOL AKSES CEPAT LAPORAN --}}
+            <a href="{{ route('admin.laporan') }}" class="flex items-center gap-2 bg-white px-4 py-2 rounded-xl border border-[#34d399]/30 shadow-sm text-[#059669] hover:bg-[#ecfdf5] transition-all font-semibold text-sm">
+                <i class="fas fa-print"></i>
+                <span>Cetak Laporan</span>
+            </a>
+
+            <div class="flex items-center gap-2 bg-[#ecfdf5] px-4 py-2 rounded-xl border border-[#34d399]/30 shadow-sm text-[#0d9488]">
+                <i class="far fa-calendar-alt"></i>
+                <span class="text-sm font-semibold">{{ \Carbon\Carbon::now()->isoFormat('D MMMM Y') }}</span>
+            </div>
         </div>
     </div>
 
@@ -53,7 +61,6 @@
             <div class="flex justify-between items-start">
                 <div>
                     <p class="text-xs font-bold text-[#0d9488]/70 uppercase tracking-wider">Pendapatan Usaha</p>
-                    {{-- Format angka dalam Ribuan USD --}}
                     <h3 class="text-xl font-extrabold text-gradient-main mt-1 truncate" title="$ {{ number_format($labaRugi, 0, ',', '.') }}">
                         $ {{ number_format($labaRugi, 0, ',', '.') }}
                         <span class="text-xs text-[#064e3b] font-normal">(000)</span>
@@ -73,7 +80,6 @@
             <div class="flex justify-between items-start">
                 <div>
                     <p class="text-xs font-bold text-[#0d9488]/70 uppercase tracking-wider">Total Hutang</p>
-                    {{-- Format angka dalam Ribuan USD --}}
                     <h3 class="text-xl font-extrabold text-gradient-danger mt-1 truncate" title="$ {{ number_format($totalHutang, 0, ',', '.') }}">
                         $ {{ number_format($totalHutang, 0, ',', '.') }}
                         <span class="text-xs text-[#be123c] font-normal">(000)</span>
@@ -115,6 +121,7 @@
                 <p class="text-[#ecfdf5]/80 text-xs mb-6 relative z-10">Kelola data keuangan dengan cepat.</p>
 
                 <div class="space-y-3 relative z-10">
+                    {{-- TOMBOL INPUT --}}
                     <a href="{{ route('admin.input') }}" class="flex items-center justify-between p-3 bg-white/10 rounded-xl hover:bg-white/20 transition-all cursor-pointer backdrop-blur-sm border border-white/10 group">
                         <div class="flex items-center gap-3">
                             <div class="bg-white text-[#0d9488] w-8 h-8 rounded-lg flex items-center justify-center text-xs shadow-sm"><i class="fas fa-plus"></i></div>
@@ -123,6 +130,18 @@
                         <i class="fas fa-chevron-right text-xs text-white/50 group-hover:translate-x-1 transition-transform"></i>
                     </a>
 
+                    {{-- TOMBOL REPORTING (PENAMBAHAN BARU) --}}
+                    <a href="{{ route('admin.laporan') }}" class="w-full flex items-center justify-between p-3 bg-white/10 rounded-xl hover:bg-white/20 transition-all cursor-pointer backdrop-blur-sm border border-white/10 group">
+                        <div class="flex items-center gap-3">
+                            <div class="bg-[#fbbf24] text-[#78350f] w-8 h-8 rounded-lg flex items-center justify-center text-xs shadow-sm">
+                                <i class="fas fa-file-invoice"></i>
+                            </div>
+                            <span class="text-sm font-semibold">Pusat Laporan (Eksport)</span>
+                        </div>
+                        <i class="fas fa-chevron-right text-xs text-white/50 group-hover:translate-x-1 transition-transform"></i>
+                    </a>
+
+                    {{-- TOMBOL RIWAYAT --}}
                     <a href="{{ route('admin.riwayat') }}" class="w-full flex items-center justify-between p-3 bg-white/10 rounded-xl hover:bg-white/20 transition-all cursor-pointer backdrop-blur-sm border border-white/10 group">
                         <div class="flex items-center gap-3">
                             <div class="bg-[#34d399] text-[#064e3b] w-8 h-8 rounded-lg flex items-center justify-center text-xs shadow-sm"><i class="fas fa-list"></i></div>
@@ -176,7 +195,7 @@
                                         </span>
                                     </td>
                                     <td class="px-6 py-4 text-center">
-                                        <a href="{{ route('admin.riwayat.show', $item->id_fakta) }}" class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white border border-[#34d399]/50 text-[#0d9488] hover:bg-[#0d9488] hover:text-white transition shadow-sm tooltip" title="Lihat Detail">
+                                        <a href="{{ route('admin.show', $item->id_fakta) }}" class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white border border-[#34d399]/50 text-[#0d9488] hover:bg-[#0d9488] hover:text-white transition shadow-sm" title="Lihat Detail">
                                             <i class="fas fa-eye text-xs"></i>
                                         </a>
                                     </td>

@@ -12,24 +12,27 @@
     <style>
         body { font-family: 'Plus Jakarta Sans', sans-serif; }
 
-        /* Custom Gradient Backgrounds - Hijau Adaro Style */
         .bg-gradient-login {
-            /* Linear gradient dari Hijau Medium ke Hijau Tua */
             background: linear-gradient(135deg, #00753b 0%, #02562c 100%);
         }
 
-        /* Gradient Text untuk Aksen (Kuning/Lime muda ke Putih) */
         .text-gradient-logo {
             background: linear-gradient(to right, #eaff00, #ffffff);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
+
+        /* Animasi sedikit untuk alert */
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-alert { animation: fadeInDown 0.4s ease-out; }
     </style>
 </head>
 <body>
 
     <div class="bg-gradient-login font-[sans-serif] relative overflow-hidden">
-
         <div class="absolute bottom-0 right-0 w-96 h-96 bg-gradient-to-tl from-[#cddd2e]/30 to-transparent rounded-tl-[100px] pointer-events-none"></div>
         <div class="absolute bottom-0 right-0 w-64 h-48 bg-gradient-to-tl from-[#eaff00]/20 to-transparent rounded-tl-[80px] pointer-events-none"></div>
 
@@ -37,10 +40,9 @@
             <div class="grid md:grid-cols-2 items-center gap-10 max-w-6xl w-full">
 
                 <div class="max-w-lg max-md:mx-auto max-md:text-center flex flex-col justify-center">
-
                     <a href="javascript:void(0)" class="mb-4 inline-block self-start max-md:self-center -ml-14">
                         <div>
-                            <img src="assets/img/alamtri_logo.png"
+                            <img src="{{ asset('assets/img/alamtri_logo.png') }}"
                                  alt="Logo Alamtri"
                                  class="h-50 w-40 object-contain block drop-shadow-md">
                         </div>
@@ -76,13 +78,23 @@
                         <p class="text-slate-500 text-sm">Silakan masukkan kredensial administrator Anda.</p>
                     </div>
 
+                    @if ($errors->any())
+                        <div class="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-r-xl flex items-center gap-3 animate-alert">
+                            <i class="fas fa-exclamation-circle text-red-500"></i>
+                            <div class="text-xs text-red-700 font-semibold">
+                                {{ $errors->first('email') }}
+                            </div>
+                        </div>
+                    @endif
+
                     <div class="space-y-5 relative">
                         <div>
                             <label class="text-[#006a35] text-xs font-bold uppercase mb-2 block tracking-wider">Email Perusahaan</label>
                             <div class="relative flex items-center group">
                                 <input name="email" type="email" required
-                                    class="w-full text-sm bg-slate-50 border border-slate-200 px-4 py-3.5 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-[#009b4d]/50 focus:border-[#009b4d] transition-all pl-11"
-                                    placeholder="Masukkan Email Perusahaan" />
+                                    class="w-full text-sm bg-slate-50 border {{ $errors->has('email') ? 'border-red-500 ring-1 ring-red-500' : 'border-slate-200' }} px-4 py-3.5 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-[#009b4d]/50 focus:border-[#009b4d] transition-all pl-11"
+                                    placeholder="Masukkan Email Perusahaan"
+                                    value="{{ old('email') }}" />
                                 <i class="fas fa-envelope w-4 h-4 absolute left-4 text-slate-400 group-focus-within:text-[#009b4d] transition-colors"></i>
                             </div>
                         </div>
@@ -90,16 +102,20 @@
                         <div>
                             <label class="text-[#006a35] text-xs font-bold uppercase mb-2 block tracking-wider">Password</label>
                             <div class="relative flex items-center group">
-                                <input name="password" type="password" required
-                                    class="w-full text-sm bg-slate-50 border border-slate-200 px-4 py-3.5 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-[#009b4d]/50 focus:border-[#009b4d] transition-all pl-11"
+                                <input name="password" id="password" type="password" required
+                                    class="w-full text-sm bg-slate-50 border {{ $errors->has('email') ? 'border-red-500 ring-1 ring-red-500' : 'border-slate-200' }} px-4 py-3.5 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-[#009b4d]/50 focus:border-[#009b4d] transition-all pl-11 pr-12"
                                     placeholder="Masukkan password" />
                                 <i class="fas fa-lock w-4 h-4 absolute left-4 text-slate-400 group-focus-within:text-[#009b4d] transition-colors"></i>
+
+                                <button type="button" onclick="togglePassword()" class="absolute right-4 text-slate-400 hover:text-[#009b4d] focus:outline-none transition-colors">
+                                    <i id="eye-icon" class="fas fa-eye"></i>
+                                </button>
                             </div>
                         </div>
 
                         <div class="flex flex-wrap items-center justify-between gap-4 pt-2">
                             <div class="flex items-center">
-                                <input id="remember-me" name="remember" type="checkbox" class="h-4 w-4 text-[#009b4d] focus:ring-[#009b4d] border-gray-300 rounded cursor-pointer accent-[#009b4d]" />
+                                <input id="remember-me" name="remember" type="checkbox" class="h-4 w-4 text-[#009b4d] focus:ring-[#009b4d] border-gray-300 rounded cursor-pointer accent-[#009b4d]" {{ old('remember') ? 'checked' : '' }} />
                                 <label for="remember-me" class="ml-2 block text-sm text-slate-600 cursor-pointer select-none">Ingat saya</label>
                             </div>
                             <div class="text-sm">
@@ -118,13 +134,30 @@
 
                     <div class="mt-8 text-center border-t border-slate-100 pt-6">
                         <p class="text-xs text-slate-400 leading-relaxed">
-                            &copy; 2024 PT Alamtri Resource Indonesia Tbk. <br> Protected by Enterprise Security.
+                            &copy; {{ date('Y') }} PT Alamtri Minerals Indonesia Tbk. <br> Protected by Enterprise Security.
                         </p>
                     </div>
                 </form>
             </div>
         </div>
     </div>
+
+    <script>
+        function togglePassword() {
+            const passwordInput = document.getElementById('password');
+            const eyeIcon = document.getElementById('eye-icon');
+
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                eyeIcon.classList.remove('fa-eye');
+                eyeIcon.classList.add('fa-eye-slash');
+            } else {
+                passwordInput.type = 'password';
+                eyeIcon.classList.remove('fa-eye-slash');
+                eyeIcon.classList.add('fa-eye');
+            }
+        }
+    </script>
 
 </body>
 </html>

@@ -21,7 +21,7 @@
 </style>
 
 <div class="max-w-6xl mx-auto pb-20 relative">
-    <form action="{{ route('admin.input.store') }}" method="POST" enctype="multipart/form-data">
+    <form action="{{ route('admin.store') }}" method="POST" enctype="multipart/form-data">
         @csrf
 
         <div class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">

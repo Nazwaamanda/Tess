@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
+    <link rel="icon" type="image/png" href="{{ asset('assets/img/as.png') }}">
+    <link rel="apple-touch-icon" href="{{ asset('assets/img/as.png') }}">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard Keuangan Alamtri | Corporate Green</title>
@@ -77,12 +79,7 @@
                 <div class="flex items-center gap-6">
                     <div class="hidden md:flex items-center px-5 py-2 rounded-full border border-white/20 bg-black/10 backdrop-blur-md shadow-inner">
                         <span id="clock-full" class="text-[11px] font-medium text-white/90 tracking-wide font-mono-clock">Loading...</span>
-                    </div>
-                    <a href="{{ route('login') }}" class="group flex items-center gap-2 text-white/80 hover:text-[#cddd2e] transition-colors duration-300">
-                        <i class="fas fa-lock text-sm group-hover:rotate-12 transition-transform"></i>
-                        <span class="font-bold text-xs tracking-widest uppercase">ADMIN</span>
-                    </a>
-                </div>
+
             </div>
         </div>
     </nav>
@@ -199,53 +196,118 @@
             </div>
         </div>
 
-        {{-- SECTION 3 --}}
-        <div class="border-t border-gray-200 pt-10 mt-10">
-            <div class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
-                <div>
-                    <h2 class="text-xl font-bold text-[#005832] flex items-center"><i class="fas fa-balance-scale-right text-lime-600 mr-3"></i> Perbandingan Kinerja Perusahaan</h2>
-                    <p class="text-gray-500 text-sm mt-1">Benchmarking rasio antar entitas.</p>
+  {{-- SECTION 3 --}}
+<div class="border-t border-gray-200 pt-10 mt-10">
+    <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-10 gap-6">
+        <div class="max-w-xl">
+            <h2 class="text-xl font-bold text-[#005832] flex items-center tracking-tight">
+                <span class="bg-lime-100 p-2 rounded-lg mr-3">
+                    <i class="fas fa-balance-scale-right text-[#007945]"></i>
+                </span>
+                Perbandingan Kinerja Perusahaan
+            </h2>
+            <p class="text-gray-500 text-sm mt-1 ml-12 font-medium">
+                Benchmarking rasio antar entitas. Tidak menemukan perusahaan yang dicari?
+                <a href="{{ route('compare.index') }}" class="text-[#007945] font-bold hover:underline">Input Manual di sini.</a>
+            </p>
+        </div>
+
+        {{-- TOMBOL BARU: NAVIGASI KE QUICK COMPARE --}}
+        <div class="flex items-center gap-3">
+            <a href="{{ route('compare.index') }}"
+               class="flex items-center gap-2 px-5 py-3 border-2 border-[#007945] text-[#007945] rounded-2xl font-bold text-xs hover:bg-[#007945] hover:text-white transition-all shadow-sm">
+                <i class="fas fa-edit"></i>
+                INPUT MANUAL USER
+            </a>
+
+            <div class="h-10 w-[1px] bg-gray-300 hidden lg:block"></div>
+
+
+        </div>
+    </div>
+
+
+            {{-- MULTI-SELECT MODERN FILTER --}}
+            <div class="w-full lg:w-auto bg-white p-4 rounded-3xl shadow-sm border border-gray-100 flex flex-col sm:flex-row gap-4 items-end">
+
+                {{-- Dropdown Checklist Perusahaan --}}
+                <div class="flex-1 w-full sm:w-64">
+                    <label class="text-[10px] font-bold text-gray-400 uppercase mb-2 block tracking-widest ml-1">Pilih Entitas</label>
+                    <div class="relative">
+                        <div onclick="toggleCompanyDropdown()" class="h-12 w-full bg-gray-50 border border-gray-200 rounded-2xl px-4 flex items-center justify-between cursor-pointer hover:border-[#007945] transition-all">
+                            <span id="selected-count" class="text-xs font-bold text-[#005832]">Semua Terpilih</span>
+                            <i class="fas fa-chevron-down text-[10px] text-gray-400"></i>
+                        </div>
+
+                        <div id="company-dropdown" class="hidden absolute top-full left-0 right-0 mt-2 bg-white border border-gray-100 shadow-xl rounded-2xl p-3 z-[60] max-h-60 overflow-y-auto custom-scroll">
+                            <div class="grid grid-cols-1 gap-1">
+                                @foreach($companies as $company)
+                                <label class="flex items-center gap-3 p-2 hover:bg-green-50 rounded-xl cursor-pointer transition-colors group">
+                                    <input type="checkbox" name="comp_choice" value="{{ $company->id_perusahaan }}" checked
+                                        class="w-4 h-4 rounded border-gray-300 text-[#007945] focus:ring-[#007945]"
+                                        onchange="updateSelectedCount()">
+                                    <div class="flex flex-col">
+                                        <span class="text-xs font-bold text-gray-700 group-hover:text-[#005832]">{{ $company->kode_saham }}</span>
+                                        <span class="text-[9px] text-gray-400">{{ \Illuminate\Support\Str::limit($company->nama_perusahaan, 20) }}</span>
+                                    </div>
+                                </label>
+                                @endforeach
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="flex items-center gap-2">
-                    <div class="bg-white p-1 rounded-xl border border-gray-200 shadow-sm flex items-center">
-                        <select id="compareYear" class="p-2 text-xs font-bold text-[#005832] outline-none bg-transparent cursor-pointer">
-                            @foreach($years as $year)
-                                <option value="{{ $year }}">Tahun {{ $year }}</option>
-                            @endforeach
-                        </select>
-                        <div class="w-px h-4 bg-gray-300 mx-1"></div>
-                        <select id="compareQuarter" class="p-2 text-xs font-bold text-[#005832] outline-none bg-transparent cursor-pointer">
-                            <option value="all">Setahun Penuh</option>
-                            <option value="Q1">Quarter I</option>
-                            <option value="Q2">Quarter II</option>
-                            <option value="Q3">Quarter III</option>
-                            <option value="Q4">Quarter IV</option>
+
+                {{-- Filter Periode --}}
+                <div class="flex gap-2 w-full sm:w-auto">
+
+<div class="flex-1">
+    <label class="text-[10px] font-bold text-gray-400 uppercase mb-2 block tracking-widest ml-1">Tahun</label>
+    <select id="compareYear" class="h-12 w-full bg-gray-50 border border-gray-150 rounded-2xl px-2 text-xs font-bold text-[#005832] outline-none">
+        @foreach($years as $year)
+            {{-- Hapus teks "Thn" di bawah ini --}}
+            <option value="{{ $year }}">{{ $year }}</option>
+        @endforeach
+    </select>
+</div>
+                    <div class="flex-1">
+                        <label class="text-[10px] font-bold text-gray-500 uppercase mb-2 block tracking-widest ml-1">Kuartal</label>
+                        <select id="compareQuarter" class="h-12 w-full bg-gray-50 border border-gray-150 rounded-2xl px-0 text-xs font-bold text-[#005832] outline-none">
+                            <option value="all">Tahunan</option>
+                            <option value="Q1">Q1</option>
+                            <option value="Q2">Q2</option>
+                            <option value="Q3">Q3</option>
+                            <option value="Q4">Q4</option>
                         </select>
                     </div>
-                    <button onclick="fetchComparisonData()" class="bg-[#007945] hover:bg-[#005832] text-white p-2.5 rounded-xl shadow-sm transition-all active:scale-95" title="Terapkan Filter"><i class="fas fa-sync-alt text-xs"></i></button>
                 </div>
-            </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <div class="card-white p-5">
-                    <h4 class="font-bold text-[#005832] text-xs uppercase mb-4 text-center">Komparasi Likuiditas</h4>
-                    <div id="cmpLiqChart" class="min-h-[250px]"></div>
-                </div>
-                <div class="card-white p-5">
-                    <h4 class="font-bold text-[#005832] text-xs uppercase mb-4 text-center">Komparasi Solvabilitas</h4>
-                    <div id="cmpSolvChart" class="min-h-[250px]"></div>
-                </div>
-                <div class="card-white p-5">
-                    <h4 class="font-bold text-[#005832] text-xs uppercase mb-4 text-center">Komparasi Profitabilitas</h4>
-                    <div id="cmpProfChart" class="min-h-[250px]"></div>
-                </div>
-            </div>
-
-            <div class="card-white p-8 border-l-4 border-[#cddd2e]">
-                <h4 class="font-bold text-[#005832] text-lg mb-6">Analisis Perbandingan Kinerja Keuangan Perusahaan</h4>
-                <div id="comparison-analysis-container" class="grid grid-cols-1 md:grid-cols-2 gap-6"></div>
+                <button onclick="fetchComparisonData()" class="h-12 bg-[#007945] hover:bg-[#005832] text-white px-6 rounded-2xl shadow-lg shadow-green-900/10 transition-all active:scale-95 flex items-center justify-center gap-2">
+                    <i class="fas fa-sync-alt text-xs"></i>
+                    <span class="text-xs font-bold uppercase tracking-wider">Bandingkan</span>
+                </button>
             </div>
         </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="card-white p-5">
+                <h4 class="font-bold text-[#005832] text-xs uppercase mb-4 text-center">Komparasi Likuiditas</h4>
+                <div id="cmpLiqChart" class="min-h-[250px]"></div>
+            </div>
+            <div class="card-white p-5">
+                <h4 class="font-bold text-[#005832] text-xs uppercase mb-4 text-center">Komparasi Solvabilitas</h4>
+                <div id="cmpSolvChart" class="min-h-[250px]"></div>
+            </div>
+            <div class="card-white p-5">
+                <h4 class="font-bold text-[#005832] text-xs uppercase mb-4 text-center">Komparasi Profitabilitas</h4>
+                <div id="cmpProfChart" class="min-h-[250px]"></div>
+            </div>
+        </div>
+
+        <div class="card-white p-8 border-l-4 border-[#cddd2e]">
+            <h4 class="font-bold text-[#005832] text-lg mb-6">Analisis Perbandingan Kinerja Keuangan Perusahaan</h4>
+            <div id="comparison-analysis-container" class="grid grid-cols-1 md:grid-cols-2 gap-6"></div>
+        </div>
+    </div>
     </main>
 
     {{-- SCRIPTS (SAMA SEPERTI SEBELUMNYA) --}}
@@ -275,10 +337,77 @@
         var profChart = new ApexCharts(document.querySelector("#profitChart"), { series: [{ name: 'Ratio', data: [] }], chart: { type: 'area', height: 220, toolbar: {show:false} }, stroke: { curve: 'smooth', width: 3 }, fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.7, opacityTo: 0.3, stops: [0, 90, 100] } }, colors: [colors.warning], dataLabels: { enabled: true, style: { colors: ['#005832'] }, formatter: function (val) { return val.toFixed(2); } }, xaxis: { categories: ['ROA', 'ROE', 'NPM'], labels: { style: { fontSize: '11px', fontWeight: 600 } } }, yaxis: { show: true }, grid: { borderColor: '#f1f1f1' }, tooltip: { theme: 'light' } }); profChart.render();
 
         const trendOpts = { chart: { type: 'area', height: 280, toolbar: { show: false } }, stroke: { curve: 'smooth', width: 2 }, fill: { type: 'gradient' }, legend: { position: 'top', fontSize: '11px' } };
-        var tLiq = new ApexCharts(document.querySelector("#trendLiqChart"), { chart: { type: 'bar', height: 280, toolbar: { show: false } }, series: [], colors: ['#005832', '#007945', '#cddd2e'], plotOptions: { bar: { horizontal: false, columnWidth: '60%', endingShape: 'rounded', borderRadius: 3 } }, dataLabels: { enabled: false }, legend: { show: false }, stroke: { show: true, width: 3, colors: ['transparent'] }, xaxis: { categories: [] }, grid: { borderColor: '#f1f1f1' } }); tLiq.render();
+        var tLiq = new ApexCharts(document.querySelector("#trendLiqChart"), {
+    chart: { type: 'bar', height: 280, toolbar: { show: false } },
+    series: [],
+    colors: ['#005832', '#007945', '#cddd2e'],
+    plotOptions: {
+        bar: {
+            horizontal: false,
+            columnWidth: '60%',
+            endingShape: 'rounded',
+            borderRadius: 3,
+            dataLabels: { position: 'top' } // Meletakkan angka di atas batang
+        }
+    },
+    dataLabels: {
+        enabled: true, // DIUBAH MENJADI TRUE
+        offsetY: -20,
+        style: { fontSize: '10px', colors: ['#304758'] }
+    },
+    legend: { show: true, position: 'top' }, // Menampilkan legend agar tahu warna tiap rasio
+    stroke: { show: true, width: 3, colors: ['transparent'] },
+    xaxis: { categories: [] },
+    grid: { borderColor: '#f1f1f1', padding: { top: 20 } } // Tambah padding atas agar angka tidak terpotong
+});
+tLiq.render();
         var tSolv = new ApexCharts(document.querySelector("#trendSolvChart"), { ...trendOpts, series: [], colors: [colors.secondary] }); tSolv.render();
-        var tProf = new ApexCharts(document.querySelector("#trendProfChart"), { chart: { type: 'area', height: 280, toolbar: { show: false }, stacked: false }, series: [], colors: [colors.dark, colors.primary, colors.warning], fill: { type: 'solid', opacity: 0.3 }, stroke: { curve: 'smooth', width: 2 }, dataLabels: { enabled: false }, legend: { position: 'top', fontSize: '11px' }, grid: { borderColor: '#f1f1f1' } }); tProf.render();
-
+        var tProf = new ApexCharts(document.querySelector("#trendProfChart"), {
+    chart: {
+        type: 'area',
+        height: 280,
+        fontFamily: "Plus Jakarta Sans, sans-serif",
+        toolbar: { show: false }
+    },
+    colors: [colors.dark, colors.primary, colors.warning],
+    series: [],
+    stroke: { curve: 'smooth', width: 3 },
+    fill: {
+        type: 'gradient',
+        gradient: { opacityFrom: 0.4, opacityTo: 0.05 }
+    },
+    dataLabels: {
+        enabled: true,
+        enabledOnSeries: undefined, // Menampilkan di semua series
+        textAnchor: 'middle',
+        offsetY: -12, // Menaikkan posisi angka agar tidak menyentuh garis
+        style: {
+            fontSize: '10px',
+            fontWeight: '700',
+            colors: ['#334155']
+        },
+        background: {
+            enabled: true,
+            foreColor: '#fff',
+            padding: 4,
+            borderRadius: 4,
+            borderWidth: 1,
+            borderColor: '#fff',
+            opacity: 0.9,
+            dropShadow: { enabled: false }
+        },
+        formatter: function (val) { return parseFloat(val).toFixed(2); }
+    },
+    markers: { size: 4, strokeWidth: 2, hover: { size: 6 } },
+    grid: { padding: { top: 20 }
+    },
+    tooltip: {
+        shared: true,
+        intersect: false,
+        theme: 'light'
+    }
+});
+tProf.render();
         const cmpOpts = { chart: { type: 'bar', height: 250, toolbar: { show: false } }, plotOptions: { bar: { horizontal: false, columnWidth: '55%', borderRadius: 4 } }, dataLabels: { enabled: false }, stroke: { show: true, width: 2, colors: ['transparent'] }, xaxis: { categories: [] }, legend: { position: 'top', fontSize: '10px' } };
         var cmpLiqChart = new ApexCharts(document.querySelector("#cmpLiqChart"), { ...cmpOpts, series: [], colors: [colors.primary, colors.light, colors.secondary] }); cmpLiqChart.render();
         var cmpSolvChart = new ApexCharts(document.querySelector("#cmpSolvChart"), { ...cmpOpts, series: [], colors: [colors.dark] }); cmpSolvChart.render();
@@ -340,39 +469,161 @@
             } catch (e) { console.error(e); }
         }
 
-        async function fetchComparisonData() {
-            const year = document.getElementById('compareYear').value;
-            const quarter = document.getElementById('compareQuarter').value;
-            const container = document.getElementById('comparison-analysis-container');
-            container.innerHTML = '<div class="col-span-2 text-center text-gray-400 py-4"><i class="fas fa-circle-notch fa-spin mr-2"></i> Memuat data terbaru...</div>';
+       // --- Logic Khusus Dropdown Multi-select ---
+function toggleCompanyDropdown() {
+    const dropdown = document.getElementById('company-dropdown');
+    dropdown.classList.toggle('hidden');
+}
 
-            try {
-                const url = `{{ route('api.bi.data') }}?type=comparison&year=${year}&quarter=${quarter}`;
-                const res = await (await fetch(url)).json();
-                const data = res.chart_data;
+function updateSelectedCount() {
+    // Ambil semua checkbox yang dicentang
+    const checkedBoxes = document.querySelectorAll('input[name="comp_choice"]:checked');
+    const label = document.getElementById('selected-count');
 
-                if (!data || data.length === 0) {
-                    container.innerHTML = '<div class="col-span-2 text-center text-red-400 py-4">Data tidak ditemukan untuk periode ini.</div>';
-                    cmpLiqChart.updateSeries([]); cmpSolvChart.updateSeries([]); cmpProfChart.updateSeries([]);
-                    return;
-                }
-                const companies = data.map(d => d.kode_saham);
-                cmpLiqChart.updateOptions({ xaxis: { categories: companies } });
-                cmpLiqChart.updateSeries([{ name: 'CR', data: data.map(d => parseFloat(d.current_ratio || 0).toFixed(2)) }, { name: 'QR', data: data.map(d => parseFloat(d.quick_ratio || 0).toFixed(2)) }, { name: 'Cash', data: data.map(d => parseFloat(d.cash_ratio || 0).toFixed(2)) }]);
-                cmpSolvChart.updateOptions({ xaxis: { categories: companies } });
-                cmpSolvChart.updateSeries([ { name: 'DER', data: data.map(d => parseFloat(d.der || 0).toFixed(2)) } ]);
-                cmpProfChart.updateOptions({ xaxis: { categories: companies } });
-                cmpProfChart.updateSeries([{ name: 'ROA', data: data.map(d => parseFloat(d.roa || 0).toFixed(2)) }, { name: 'ROE', data: data.map(d => parseFloat(d.roe || 0).toFixed(2)) }, { name: 'NPM', data: data.map(d => parseFloat(d.npm || 0).toFixed(2)) }]);
+    if (checkedBoxes.length === 0) {
+        label.innerText = "Pilih Entitas";
+    } else {
+        // Mengambil kode saham dari teks label di sebelah checkbox
+        // Kita asumsikan struktur HTML: <label> <input> <span>KODE</span> </label>
+        const selectedCodes = Array.from(checkedBoxes).map(cb => {
+            // Mengambil teks dari span yang berisi kode saham (elemen teks pertama di group)
+            return cb.closest('label').querySelector('span').innerText;
+        });
 
-                container.innerHTML = '';
-                res.analysis_list.forEach(item => {
-                    container.innerHTML += `<div class="bg-gray-50 p-5 rounded-2xl border border-gray-200 hover:border-green-300 transition-colors shadow-sm"><h5 class="font-bold text-[#005832] text-md mb-3 border-b border-gray-200 pb-2">${item.company} <span class="text-[#007945]">(${item.code})</span></h5><div class="text-xs text-gray-700 leading-relaxed text-justify space-y-2">${item.text}</div></div>`;
-                });
-            } catch (e) {
-                console.error(e);
-                container.innerHTML = '<div class="col-span-2 text-center text-red-500">Terjadi kesalahan memuat data.</div>';
-            }
+        // Tampilkan kode saham dipisahkan koma (Contoh: ADMR, ALAM)
+        // .slice(0, 3) digunakan agar teks tidak meluap jika terlalu banyak yang dipilih
+        let displayText = selectedCodes.join(', ');
+
+        if (selectedCodes.length > 2) {
+            displayText = selectedCodes.slice(0, 2).join(', ') + '... (+' + (selectedCodes.length - 2) + ')';
         }
+
+        label.innerText = displayText;
+    }
+}
+
+// Tutup dropdown jika klik di luar area
+document.addEventListener('click', function(event) {
+    const dropdown = document.getElementById('company-dropdown');
+    const trigger = dropdown.previousElementSibling;
+    if (dropdown && !trigger.contains(event.target) && !dropdown.contains(event.target)) {
+        dropdown.classList.add('hidden');
+    }
+});
+
+// --- Update Fungsi fetchComparisonData ---
+async function fetchComparisonData() {
+    const year = document.getElementById('compareYear').value;
+    const quarter = document.getElementById('compareQuarter').value;
+    const selectedCompanies = Array.from(document.querySelectorAll('input[name="comp_choice"]:checked')).map(cb => cb.value);
+    const container = document.getElementById('comparison-analysis-container');
+
+    container.innerHTML = '<div class="col-span-2 text-center text-gray-400 py-10"><i class="fas fa-circle-notch fa-spin mr-2"></i> Menganalisis benchmarking...</div>';
+
+    if (selectedCompanies.length === 0) {
+        container.innerHTML = '<div class="col-span-2 text-center text-red-500 py-10 font-bold italic">Mohon pilih minimal satu perusahaan.</div>';
+        return;
+    }
+
+    try {
+        let companyQuery = selectedCompanies.map(id => `company_ids[]=${id}`).join('&');
+        const url = `{{ route('api.bi.data') }}?type=comparison&year=${year}&quarter=${quarter}&${companyQuery}`;
+        const res = await (await fetch(url)).json();
+        const data = res.chart_data;
+
+        if (!data || data.length === 0) {
+            container.innerHTML = '<div class="col-span-2 text-center text-red-400 py-10">Data tidak tersedia untuk periode ini.</div>';
+            cmpLiqChart.updateSeries([]); cmpSolvChart.updateSeries([]); cmpProfChart.updateSeries([]);
+            return;
+        }
+
+        const companies = data.map(d => d.kode_saham);
+
+        // --- KONFIGURASI OPTIMAL AGAR TIDAK BERTUMPUK ---
+        const labelOptions = {
+            xaxis: {
+                categories: companies,
+                labels: { style: { fontSize: '10px', fontWeight: 600 } }
+            },
+            plotOptions: {
+                bar: {
+                    dataLabels: { position: 'top' },
+                    columnWidth: '80%', // Diperlebar agar batang punya ruang lebih luas
+                    borderRadius: 4,
+                    // Penyesuaian agar antar batang dalam satu grup punya jarak
+                    rangeBarOverlap: false,
+                }
+            },
+            dataLabels: {
+                enabled: true,
+                offsetY: -20, // Menaikkan label sedikit lebih tinggi
+                style: {
+                    fontSize: '9px', // Ukuran font diperkecil agar tidak tabrakan horizontal
+                    fontWeight: '700',
+                    colors: ["#237A45"]
+                },
+                background: {
+                    enabled: true,
+                    foreColor: '#fff',
+                    padding: 3,
+                    borderRadius: 2,
+                    borderWidth: 1,
+                    borderColor: '#e2e8f0',
+                    opacity: 0.9,
+                    dropShadow: { enabled: false }
+                },
+                formatter: function (val) {
+                    return val != 0 ? parseFloat(val).toFixed(2) : '';
+                }
+            },
+            grid: {
+                padding: { top: 30, bottom: 0 } // Ruang atas ekstra agar label tertinggi tidak terpotong
+            },
+            legend: {
+                position: 'top',
+                fontSize: '11px'
+            }
+        };
+
+
+        // 1. Update Chart Likuiditas
+        cmpLiqChart.updateOptions(labelOptions);
+        cmpLiqChart.updateSeries([
+            { name: 'CR', data: data.map(d => parseFloat(d.current_ratio || 0).toFixed(2)) },
+            { name: 'QR', data: data.map(d => parseFloat(d.quick_ratio || 0).toFixed(2)) },
+            { name: 'Cash', data: data.map(d => parseFloat(d.cash_ratio || 0).toFixed(2)) }
+        ]);
+
+        // 2. Update Chart Solvabilitas
+        cmpSolvChart.updateOptions(labelOptions);
+        cmpSolvChart.updateSeries([
+            { name: 'DER', data: data.map(d => parseFloat(d.der || 0).toFixed(2)) }
+        ]);
+
+        // 3. Update Chart Profitabilitas
+        cmpProfChart.updateOptions(labelOptions);
+        cmpProfChart.updateSeries([
+            { name: 'ROA', data: data.map(d => parseFloat(d.roa || 0).toFixed(2)) },
+            { name: 'ROE', data: data.map(d => parseFloat(d.roe || 0).toFixed(2)) },
+            { name: 'NPM', data: data.map(d => parseFloat(d.npm || 0).toFixed(2)) }
+        ]);
+
+        // Update Container Analisis Teks
+        container.innerHTML = '';
+        res.analysis_list.forEach(item => {
+            container.innerHTML += `
+                <div class="bg-gray-50 p-5 rounded-2xl border border-gray-200 hover:border-green-300 transition-all shadow-sm">
+                    <h5 class="font-bold text-[#005832] text-md mb-3 border-b border-gray-200 pb-2">${item.company} <span class="text-[#007945]">(${item.code})</span></h5>
+                    <div class="text-xs text-gray-700 leading-relaxed text-justify space-y-2">${item.text}</div>
+                </div>`;
+        });
+
+    } catch (e) {
+        console.error(e);
+        container.innerHTML = '<div class="col-span-2 text-center text-red-500 py-10 font-bold">Terjadi kesalahan pada server.</div>';
+    }
+}
+
         document.addEventListener('DOMContentLoaded', () => { refreshAllData(); });
     </script>
 </body>

@@ -13,7 +13,7 @@ class AuthController extends Controller
     public function authenticate(Request $request)
     {
         // 1. Validasi Input
-        // Kita validasi berdasarkan 'name' yang ada di form HTML kamu
+
         $credentials = $request->validate([
             'email' => ['required', 'email'],
             'password' => ['required'],
@@ -23,9 +23,6 @@ class AuthController extends Controller
 
         if (Auth::attempt($credentials, $remember)) {
             $request->session()->regenerate();
-
-            // REKOMENDASI:
-            // Gunakan redirect()->route() agar lebih pasti
             return redirect()->route('admin.dashboard');
         }
 

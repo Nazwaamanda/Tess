@@ -5,6 +5,9 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Barryvdh\DomPDF\Facade\Pdf;
+use App\Exports\KinerjaExport; // Pastikan file Export sudah dibuat
+use Maatwebsite\Excel\Facades\Excel;
 
 class DashboardBIController extends Controller
 {
@@ -24,14 +27,16 @@ class DashboardBIController extends Controller
         $type = $request->type;
         $year = $request->year;
         $quarter = $request->quarter;
-        $companyId = $request->company_id ?? $this->mainCompanyId;
+        // Ambil array ID perusahaan dari request
+        $companyIds = $request->company_ids;
 
         if ($type == 'snapshot') {
-            return $this->getSnapshotData($companyId, $year, $quarter);
+            return $this->getSnapshotData($request->company_id ?? $this->mainCompanyId, $year, $quarter);
         } elseif ($type == 'trend') {
-            return $this->getTrendData($companyId, $year);
+            return $this->getTrendData($request->company_id ?? $this->mainCompanyId, $year);
         } elseif ($type == 'comparison') {
-            return $this->getComparisonData($year, $quarter);
+            // Kirim array ID ke fungsi pembanding
+            return $this->getComparisonData($year, $quarter, $companyIds);
         }
 
         return response()->json(['error' => 'Invalid request'], 400);
@@ -141,86 +146,127 @@ class DashboardBIController extends Controller
   // ================================================================
     // 3. COMPARISON DATA (FIX: Tambah Keterangan Profitabilitas)
     // ================================================================
-    private function getComparisonData($year, $quarter)
-    {
-        if ($quarter == 'all') {
-            // Cari kuartal terakhir
-            $latestData = DB::table('fact_kinerja_keuangan as f')
-                ->join('dim_waktu as w', 'f.id_waktu', '=', 'w.id_waktu')
-                ->join('dim_tahun as t', 'w.id_tahun', '=', 't.id_tahun')
-                ->join('dim_kuartal as k', 'w.id_kuartal', '=', 'k.id_kuartal')
-                ->where('t.tahun', $year)
-                ->orderBy('k.nomor_kuartal', 'desc')
-                ->first();
-
-            $targetQ = $latestData ? $latestData->nama_kuartal : 'Q4';
-            $labelPeriode = "Setahun Penuh (Data Terakhir: $targetQ)";
-        } else {
-            $targetQ = $quarter;
-            $labelPeriode = "Kuartal $quarter";
-        }
-
-        $data = DB::table('fact_kinerja_keuangan as f')
-            ->join('dim_perusahaan as p', 'f.id_perusahaan', '=', 'p.id_perusahaan')
+    private function getComparisonData($year, $quarter, $companyIds = [])
+{
+    if ($quarter == 'all') {
+        $latestData = DB::table('fact_kinerja_keuangan as f')
             ->join('dim_waktu as w', 'f.id_waktu', '=', 'w.id_waktu')
             ->join('dim_tahun as t', 'w.id_tahun', '=', 't.id_tahun')
             ->join('dim_kuartal as k', 'w.id_kuartal', '=', 'k.id_kuartal')
             ->where('t.tahun', $year)
-            ->where('k.nama_kuartal', $targetQ)
-            ->select(
-                'f.id_rasio',
-                'p.kode_saham',
-                'p.nama_perusahaan',
-                'f.current_ratio',
-                'f.quick_ratio',
-                'f.cash_ratio',
-                'f.der',
-                'f.roa',
-                'f.roe',
-                'f.npm'
-            )
-            ->orderBy('p.id_perusahaan', 'asc')
-            ->get();
+            ->orderBy('k.nomor_kuartal', 'desc')
+            ->first();
 
-        $analysisList = [];
-        foreach($data as $d) {
-            // 1. Ambil Keterangan Likuiditas (CR)
-            $ketLiq = DB::table('dim_likuiditas')
-                        ->where('id_rasio', $d->id_rasio)
-                        ->where('nama_rasio', 'Current Ratio')
-                        ->value('keterangan') ?? '-';
-
-            // 2. Ambil Keterangan Solvabilitas (DER)
-            $ketSol = DB::table('dim_solvabilitas')
-                        ->where('id_rasio', $d->id_rasio)
-                        ->where('nama_rasio', 'DER')
-                        ->value('keterangan') ?? '-';
-
-            // 3. BARU: Ambil Keterangan Profitabilitas (ROA)
-            $ketProf = DB::table('dim_profitabilitas')
-                        ->where('id_rasio', $d->id_rasio)
-                        ->where('nama_rasio', 'ROA')
-                        ->value('keterangan') ?? '-';
-
-            // Susun HTML untuk ditampilkan di Frontend
-            $text = "<ul class='list-disc list-inside text-[10px] space-y-1 text-gray-600'>";
-            $text .= "<li><b>Likuiditas (CR):</b> $ketLiq</li>";
-            $text .= "<li><b>Solvabilitas (DER):</b> $ketSol</li>";
-            $text .= "<li><b>Profitabilitas (ROA):</b> $ketProf</li>"; // <--- Baris ini ditambahkan
-            $text .= "</ul>";
-
-            $analysisList[] = [
-                'company' => $d->nama_perusahaan,
-                'code' => $d->kode_saham,
-                'text' => $text
-            ];
-        }
-
-        return response()->json([
-            'chart_data' => $data,
-            'analysis_list' => $analysisList
-        ]);
+        $targetQ = $latestData ? $latestData->nama_kuartal : 'Q4';
+    } else {
+        $targetQ = $quarter;
     }
+
+    $query = DB::table('fact_kinerja_keuangan as f')
+        ->join('dim_perusahaan as p', 'f.id_perusahaan', '=', 'p.id_perusahaan')
+        ->join('dim_waktu as w', 'f.id_waktu', '=', 'w.id_waktu')
+        ->join('dim_tahun as t', 'w.id_tahun', '=', 't.id_tahun')
+        ->join('dim_kuartal as k', 'w.id_kuartal', '=', 'k.id_kuartal')
+        ->where('t.tahun', $year)
+        ->where('k.nama_kuartal', $targetQ)
+        ->select(
+            'f.id_rasio', 'p.id_perusahaan', 'p.kode_saham', 'p.nama_perusahaan',
+            'f.current_ratio', 'f.quick_ratio', 'f.cash_ratio',
+            'f.der', 'f.roa', 'f.roe', 'f.npm'
+        );
+
+    // LOGIKA FILTER: Jika user memilih perusahaan spesifik
+    if (!empty($companyIds) && is_array($companyIds)) {
+        $query->whereIn('f.id_perusahaan', $companyIds);
+    }
+
+    $data = $query->orderBy('p.id_perusahaan', 'asc')->get();
+
+    $analysisList = [];
+    foreach($data as $d) {
+        // ... (Logika pengambilan keterangan dari DB tetap sama seperti kode kamu)
+        $ketLiq = DB::table('dim_likuiditas')->where('id_rasio', $d->id_rasio)->where('nama_rasio', 'Current Ratio')->value('keterangan') ?? '-';
+        $ketSol = DB::table('dim_solvabilitas')->where('id_rasio', $d->id_rasio)->where('nama_rasio', 'DER')->value('keterangan') ?? '-';
+        $ketProf = DB::table('dim_profitabilitas')->where('id_rasio', $d->id_rasio)->where('nama_rasio', 'ROA')->value('keterangan') ?? '-';
+
+        $text = "<ul class='list-disc list-inside text-[10px] space-y-1 text-gray-600'>";
+        $text .= "<li><b>Likuiditas:</b> $ketLiq</li>";
+        $text .= "<li><b>Solvabilitas:</b> $ketSol</li>";
+        $text .= "<li><b>Profitabilitas:</b> $ketProf</li>";
+        $text .= "</ul>";
+
+        $analysisList[] = [
+            'company' => $d->nama_perusahaan,
+            'code' => $d->kode_saham,
+            'text' => $text
+        ];
+    }
+
+    return response()->json([
+        'chart_data' => $data,
+        'analysis_list' => $analysisList
+    ]);
+}
+
+// ================================================================
+// 4. REPORTING SYSTEM (PDF & EXCEL)
+// ================================================================
+
+public function laporan(Request $request)
+{
+    // Mengambil data untuk filter dropdown
+    $years = DB::table('dim_tahun')->orderBy('tahun', 'desc')->pluck('tahun');
+    $quarters = DB::table('dim_kuartal')->orderBy('nomor_kuartal', 'asc')->get();
+
+    // Query utama dengan relasi lengkap
+    $query = DB::table('fact_kinerja_keuangan as f')
+        ->join('dim_perusahaan as p', 'f.id_perusahaan', '=', 'p.id_perusahaan')
+        ->join('dim_waktu as w', 'f.id_waktu', '=', 'w.id_waktu')
+        ->join('dim_tahun as t', 'w.id_tahun', '=', 't.id_tahun')
+        ->join('dim_kuartal as k', 'w.id_kuartal', '=', 'k.id_kuartal')
+        ->select('f.*', 'p.nama_perusahaan', 'p.kode_saham', 't.tahun', 'k.nama_kuartal', 'k.nomor_kuartal');
+
+    // Terapkan Filter jika ada
+    if ($request->filled('tahun')) {
+        $query->where('t.tahun', $request->tahun);
+    }
+    if ($request->filled('kuartal')) {
+        $query->where('k.nomor_kuartal', $request->kuartal);
+    }
+
+    $data = $query->orderBy('t.tahun', 'desc')->orderBy('k.nomor_kuartal', 'desc')->get();
+
+    return view('admin.laporan', compact('data', 'years', 'quarters'));
+}
+
+public function exportPdf(Request $request)
+{
+    // Logika filter yang sama dengan fungsi laporan
+    $query = DB::table('fact_kinerja_keuangan as f')
+        ->join('dim_perusahaan as p', 'f.id_perusahaan', '=', 'p.id_perusahaan')
+        ->join('dim_waktu as w', 'f.id_waktu', '=', 'w.id_waktu')
+        ->join('dim_tahun as t', 'w.id_tahun', '=', 't.id_tahun')
+        ->join('dim_kuartal as k', 'w.id_kuartal', '=', 'k.id_kuartal')
+        ->select('f.*', 'p.nama_perusahaan', 't.tahun', 'k.nama_kuartal');
+
+    if ($request->filled('tahun')) $query->where('t.tahun', $request->tahun);
+    if ($request->filled('kuartal')) $query->where('k.nomor_kuartal', $request->kuartal);
+
+    $data = $query->get();
+
+    // Load View PDF (Gunakan kertas Landscape agar muat tabel lebar)
+    $pdf = Pdf::loadView('admin.pdf_template', compact('data'))->setPaper('a4', 'landscape');
+    return $pdf->stream('Laporan_BI_Kinerja_' . now()->format('Y-m-d') . '.pdf');
+}
+
+public function exportExcel(Request $request)
+{
+    // Menggunakan class Export terpisah untuk kemudahan manajemen file
+    return Excel::download(
+        new KinerjaExport($request->tahun, $request->kuartal),
+        'Laporan_BI_Kinerja_' . now()->format('Ymd') . '.xlsx'
+    );
+}
 
     // ================================================================
     // HELPER: AMBIL KETERANGAN DARI TABEL DIMENSI

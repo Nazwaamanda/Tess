@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
+    <link rel="icon" type="image/png" href="{{ asset('assets/img/as.png') }}">
+    <link rel="apple-touch-icon" href="{{ asset('assets/img/as.png') }}">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard | Alamtri FinSight</title>
@@ -60,22 +62,32 @@
             <nav class="flex-1 px-4 space-y-2">
                 <p class="px-4 text-[10px] font-bold text-emerald-medium/70 uppercase tracking-widest mb-2">Menu Utama</p>
 
+                {{-- DASHBOARD --}}
                 <a href="{{ route('admin.dashboard') }}"
                    class="flex items-center gap-3 p-3 rounded-xl transition-all {{ request()->routeIs('admin.dashboard') ? 'nav-item-active shadow-sm' : 'text-slate-500 nav-item-inactive' }}">
                     <i class="fas fa-home w-5 {{ request()->routeIs('admin.dashboard') ? 'text-[#10b981]' : '' }}"></i>
                     <span class="text-sm font-semibold">Dashboard</span>
                 </a>
 
+                {{-- INPUT DATA --}}
                 <a href="{{ route('admin.input') }}"
                    class="flex items-center gap-3 p-3 rounded-xl transition-all {{ request()->routeIs('admin.input') ? 'nav-item-active shadow-sm' : 'text-slate-500 nav-item-inactive' }}">
                     <i class="fas fa-plus-circle w-5 {{ request()->routeIs('admin.input') ? 'text-[#10b981]' : '' }}"></i>
                     <span class="text-sm font-semibold">Input Data</span>
                 </a>
 
+                {{-- RIWAYAT DATA --}}
                 <a href="{{ route('admin.riwayat') }}"
                    class="flex items-center gap-3 p-3 rounded-xl transition-all {{ request()->routeIs('admin.riwayat') ? 'nav-item-active shadow-sm' : 'text-slate-500 nav-item-inactive' }}">
                     <i class="fas fa-history w-5 {{ request()->routeIs('admin.riwayat') ? 'text-[#10b981]' : '' }}"></i>
                     <span class="text-sm font-semibold">Riwayat Data</span>
+                </a>
+
+                {{-- REPORTING (MENU BARU) --}}
+                <a href="{{ route('admin.laporan') }}"
+                   class="flex items-center gap-3 p-3 rounded-xl transition-all {{ request()->routeIs('admin.laporan') ? 'nav-item-active shadow-sm' : 'text-slate-500 nav-item-inactive' }}">
+                    <i class="fas fa-file-medical-alt w-5 {{ request()->routeIs('admin.laporan') ? 'text-[#10b981]' : '' }}"></i>
+                    <span class="text-sm font-semibold">Laporan Keuangan</span>
                 </a>
             </nav>
 

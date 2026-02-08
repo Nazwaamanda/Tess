@@ -3,8 +3,10 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\AuthController;
-// Import Controller BI (Pastikan namespace ini benar sesuai file controllernya)
 use App\Http\Controllers\DashboardBIController;
+use App\Http\Controllers\Exports\KinerjaExport;
+use App\Http\Controllers\ComparisonController;
+
 
 /*
 |--------------------------------------------------------------------------
@@ -13,6 +15,9 @@ use App\Http\Controllers\DashboardBIController;
 */
 Route::get('/', [DashboardBIController::class, 'index'])->name('home');
 Route::get('/api/bi-data', [DashboardBIController::class, 'getBiData'])->name('api.bi.data');
+Route::get('/quick-compare', [ComparisonController::class, 'index'])->name('compare.index');
+Route::get('/quick-compare', [ComparisonController::class, 'index'])->name('compare.index');
+Route::get('/api/admr-reference', [ComparisonController::class, 'getAdmrData']);
 /*
 |--------------------------------------------------------------------------
 | Authentication Routes
@@ -43,16 +48,21 @@ Route::middleware(['auth'])
     ->name('admin.')
     ->group(function () {
 
-        // Dashboard Admin (Beda tampilan dengan welcome, ini untuk admin panel)
+        // Dashboard Admin
         Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('dashboard');
 
         // CRUD & Input Data
         Route::get('/input', [AdminController::class, 'input'])->name('input');
-        Route::post('/input/store', [AdminController::class, 'store'])->name('input.store');
+        Route::post('/store', [AdminController::class, 'store'])->name('store');
         Route::post('/input/parse-excel', [AdminController::class, 'parseExcel'])->name('input.parse');
 
-        // Riwayat & Detail
+        // Riwayat & Detail (Disederhanakan agar pas dengan Dashboard)
         Route::get('/riwayat', [AdminController::class, 'riwayat'])->name('riwayat');
-        Route::get('/riwayat/{id}', [AdminController::class, 'show'])->name('riwayat.show');
-        Route::delete('/riwayat/{id}', [AdminController::class, 'destroy'])->name('riwayat.destroy');
+        Route::get('/detail/{id}', [AdminController::class, 'show'])->name('show'); // Nama rute jadi 'admin.show'
+        Route::delete('/destroy/{id}', [AdminController::class, 'destroy'])->name('destroy');
+
+        // Module Reporting
+        Route::get('/laporan', [AdminController::class, 'laporan'])->name('laporan');
+        Route::get('/laporan/pdf', [AdminController::class, 'exportPdf'])->name('laporan.pdf');
+        Route::get('/laporan/excel', [AdminController::class, 'exportExcel'])->name('laporan.excel');
     });

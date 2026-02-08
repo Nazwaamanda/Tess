@@ -3,6 +3,10 @@
 @section('title', 'Riwayat Data Keuangan')
 
 @section('content')
+<Head>
+    <link rel="icon" type="image/png" href="{{ asset('assets/img/as.png') }}">
+    <link rel="apple-touch-icon" href="{{ asset('assets/img/as.png') }}">
+</Head>
 <style>
     .bg-gradient-primary { background: linear-gradient(to right, #10b981, #0d9488); }
     .table-row-hover:hover { background-color: #f0fdfa; }
@@ -30,15 +34,26 @@
     {{-- FILTER SECTION --}}
     <form action="{{ route('admin.riwayat') }}" method="GET">
         <div class="bg-white p-5 rounded-2xl shadow-sm border border-[#34d399]/30 mb-6 flex flex-col md:flex-row items-end gap-4">
-            <div class="w-full md:w-48">
-                <label class="block text-[10px] font-bold text-[#0d9488] uppercase mb-1 tracking-wider">Filter Tahun</label>
+
+            <div class="w-full md:w-40">
+                <label class="block text-[10px] font-bold text-[#0d9488] uppercase mb-1 tracking-wider">Tahun</label>
+                <select name="filter_tahun" class="w-full bg-[#f0fdfa] border border-[#34d399]/30 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#10b981] font-medium text-[#064e3b]">
+                    <option value="">Semua</option>
+                    @foreach(range(date('Y'), 2020) as $year)
+                        <option value="{{ $year }}" {{ request('filter_tahun') == $year ? 'selected' : '' }}>{{ $year }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            {{-- TAMBAHAN: FILTER URUTAN (SORT) --}}
+            <div class="w-full md:w-56">
+                <label class="block text-[10px] font-bold text-[#0d9488] uppercase mb-1 tracking-wider">Urutkan Berdasarkan</label>
                 <div class="relative">
-                    <i class="fas fa-calendar absolute left-3 top-3 text-[#34d399] text-xs"></i>
-                    <select name="filter_tahun" class="pl-8 w-full bg-[#f0fdfa] border border-[#34d399]/30 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#10b981] font-medium text-[#064e3b]">
-                        <option value="">Semua Tahun</option>
-                        @foreach(range(date('Y'), 2020) as $year)
-                            <option value="{{ $year }}" {{ request('filter_tahun') == $year ? 'selected' : '' }}>{{ $year }}</option>
-                        @endforeach
+                    <i class="fas fa-sort-amount-down absolute left-3 top-3 text-[#34d399] text-xs"></i>
+                    <select name="sort" class="pl-8 w-full bg-[#f0fdfa] border border-[#34d399]/30 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#10b981] font-medium text-[#064e3b]">
+                        <option value="latest" {{ request('sort') == 'latest' ? 'selected' : '' }}>Input Terbaru</option>
+                        <option value="year_asc" {{ request('sort') == 'year_asc' ? 'selected' : '' }}>Tahun (Terkecil - Terbesar)</option>
+                        <option value="company_az" {{ request('sort') == 'company_az' ? 'selected' : '' }}>Perusahaan (A - Z)</option>
                     </select>
                 </div>
             </div>
@@ -52,8 +67,9 @@
                     <option value="4" {{ request('filter_triwulan') == '4' ? 'selected' : '' }}>Triwulan IV</option>
                 </select>
             </div>
+
             <button type="submit" class="w-full md:w-auto bg-[#064e3b] text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-[#047857] transition flex items-center justify-center gap-2">
-                <i class="fas fa-search text-[#34d399]"></i> Cari Data
+                <i class="fas fa-search text-[#34d399]"></i> Terapkan
             </button>
         </div>
     </form>
@@ -111,7 +127,7 @@
                             {{-- Kolom Aksi --}}
                             <td class="px-6 py-4 align-middle text-center">
                                 <button type="button"
-                                    onclick="openDeleteModal('{{ route('admin.riwayat.destroy', $item->id_fakta) }}', '{{ $item->perusahaan->nama_perusahaan }} ({{ $item->waktu->tahun->tahun }} - {{ $item->waktu->kuartal->nama_kuartal }})')"
+                                onclick="openDeleteModal('{{ route('admin.destroy', $item->id_fakta) }}','{{ $item->perusahaan->nama_perusahaan }} ({{ $item->waktu->tahun->tahun }} - {{ $item->waktu->kuartal->nama_kuartal }})')"
                                     class="w-8 h-8 inline-flex items-center justify-center rounded-lg bg-white border border-red-200 text-red-500 hover:bg-red-50 hover:text-red-700 transition-all shadow-sm">
                                     <i class="fas fa-trash-alt text-xs"></i>
                                 </button>

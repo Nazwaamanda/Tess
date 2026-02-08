@@ -7,6 +7,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Facades\Excel;
 use Smalot\PdfParser\Parser as PdfParser;
+use Barryvdh\DomPDF\Facade\Pdf;
+use App\Exports\KinerjaExport;
 
 // Import Model
 use App\Models\DimTahun;
@@ -21,18 +23,35 @@ use App\Models\FactKinerjaKeuangan;
 
 class AdminController extends Controller
 {
+    // ... (Fungsi dashboard, show, input, riwayat, dan destroy tetap sama seperti sebelumnya) ...
+
     public function dashboard()
     {
+        // 1. Hitung total semua data (tetap global atau bisa difilter ADMR jika mau)
         $totalData = FactKinerjaKeuangan::count();
-        $latestRecord = FactKinerjaKeuangan::with(['waktu.kuartal', 'waktu.tahun'])
-            ->orderBy('tanggal_pencatatan', 'desc')->first();
 
-        $labaRugi    = $latestRecord ? $latestRecord->laba_setelah_pajak : 0;
+        // 2. Ambil data ADMR pada periode Tahun dan Kuartal TERAKHIR
+        $latestRecord = FactKinerjaKeuangan::with(['waktu.kuartal', 'waktu.tahun', 'perusahaan'])
+            ->join('dim_perusahaan', 'fact_kinerja_keuangan.id_perusahaan', '=', 'dim_perusahaan.id_perusahaan')
+            ->join('dim_waktu', 'fact_kinerja_keuangan.id_waktu', '=', 'dim_waktu.id_waktu')
+            ->join('dim_tahun', 'dim_waktu.id_tahun', '=', 'dim_tahun.id_tahun')
+            ->join('dim_kuartal', 'dim_waktu.id_kuartal', '=', 'dim_kuartal.id_kuartal')
+            ->where('dim_perusahaan.kode_saham', 'ADMR') // Filter khusus ADMR
+            ->orderBy('dim_tahun.tahun', 'desc')         // Tahun terbaru
+            ->orderBy('dim_kuartal.nomor_kuartal', 'desc') // Kuartal terbaru
+            ->select('fact_kinerja_keuangan.*')
+            ->first();
+
+        // 3. Masukkan ke variabel untuk View
+        $labaRugi    = $latestRecord ? $latestRecord->pendapatan : 0; // Mengambil field pendapatan
         $totalHutang = $latestRecord ? $latestRecord->total_utang : 0;
-        $periodeLabel = $latestRecord
-            ? "Periode " . $latestRecord->waktu->kuartal->nama_kuartal . " " . $latestRecord->waktu->tahun->tahun
-            : "-";
 
+        // Label periode untuk memperjelas tampilan (Contoh: ADMR - Periode Q4 2024)
+        $periodeLabel = $latestRecord
+            ? "ADMR - " . $latestRecord->waktu->kuartal->nama_kuartal . " " . $latestRecord->waktu->tahun->tahun
+            : "Data ADMR tidak ditemukan";
+
+        // 4. Riwayat 5 inputan terakhir (bisa tetap global untuk memantau semua aktivitas)
         $recents = FactKinerjaKeuangan::with(['waktu.tahun', 'waktu.kuartal', 'perusahaan'])
             ->orderBy('id_fakta', 'desc')->limit(5)->get();
 
@@ -52,51 +71,60 @@ class AdminController extends Controller
 
     public function riwayat(Request $request)
     {
-        $query = FactKinerjaKeuangan::with(['waktu.tahun', 'waktu.kuartal', 'perusahaan']);
+        // Join tabel dimensi agar filter dan sorting berjalan di level database
+        $query = FactKinerjaKeuangan::with(['waktu.tahun', 'waktu.kuartal', 'perusahaan'])
+            ->join('dim_waktu', 'fact_kinerja_keuangan.id_waktu', '=', 'dim_waktu.id_waktu')
+            ->join('dim_tahun', 'dim_waktu.id_tahun', '=', 'dim_tahun.id_tahun')
+            ->join('dim_kuartal', 'dim_waktu.id_kuartal', '=', 'dim_kuartal.id_kuartal') // Tambahkan join kuartal
+            ->join('dim_perusahaan', 'fact_kinerja_keuangan.id_perusahaan', '=', 'dim_perusahaan.id_perusahaan');
+
+        // --- Filter Tahun ---
         if ($request->filled('filter_tahun')) {
-            $query->whereHas('waktu.tahun', fn($q) => $q->where('tahun', $request->filter_tahun));
+            $query->where('dim_tahun.tahun', $request->filter_tahun);
         }
+
+        // --- Filter Triwulan (Menggunakan kolom hasil join agar lebih cepat) ---
         if ($request->filled('filter_triwulan')) {
-            $query->whereHas('waktu.kuartal', fn($q) => $q->where('nomor_kuartal', $request->filter_triwulan));
+            $query->where('dim_kuartal.nomor_kuartal', $request->filter_triwulan);
         }
-        $data = $query->orderBy('tanggal_pencatatan', 'desc')->paginate(10)->withQueryString();
+
+        // --- Sorting Logic ---
+        $sort = $request->get('sort', 'latest');
+
+        switch ($sort) {
+            case 'year_asc':
+                // Urutkan tahun dari terkecil, lalu kuartal dari terkecil (Q1 ke Q4)
+                $query->orderBy('dim_tahun.tahun', 'asc')
+                      ->orderBy('dim_kuartal.nomor_kuartal', 'asc');
+                break;
+            case 'company_az':
+                $query->orderBy('dim_perusahaan.nama_perusahaan', 'asc');
+                break;
+            case 'latest':
+            default:
+                // Input terakhir yang dimasukkan muncul paling atas
+                $query->orderBy('fact_kinerja_keuangan.id_fakta', 'desc');
+                break;
+        }
+
+        // Select hanya kolom dari tabel fakta untuk menghindari bentrok nama kolom (seperti 'id')
+        $data = $query->select('fact_kinerja_keuangan.*')->paginate(10)->withQueryString();
+
         return view('admin.riwayat', compact('data'));
     }
-
-   // ==========================================
-    // DESTROY: HAPUS DATA WAREHOUSE (CASCADE)
-    // ==========================================
-    // ==========================================
-    // DESTROY: HAPUS DATA WAREHOUSE (CASCADE)
-    // ==========================================
-  // ==========================================
-    // DESTROY: HAPUS TOTAL (BERSIH-BERSIH DATA)
-    // ==========================================
     public function destroy($id)
     {
         try {
             DB::beginTransaction();
-
-            // 1. Ambil Data Fakta beserta relasi untuk mendapatkan ID dimensi
-            // Kita butuh ID ini sebelum data utamanya dihapus
             $fakta = FactKinerjaKeuangan::with(['waktu'])->findOrFail($id);
-
             $idRasio = $fakta->id_rasio;
             $idWaktu = $fakta->id_waktu;
             $idPerusahaan = $fakta->id_perusahaan;
-
-            // Ambil ID Tahun dan Kuartal dari relasi Waktu sebelum dihapus
             $idTahun = $fakta->waktu ? $fakta->waktu->id_tahun : null;
             $idKuartal = $fakta->waktu ? $fakta->waktu->id_kuartal : null;
 
-            // ---------------------------------------------------------
-            // TAHAP 1: Hapus Data Utama (Fakta)
-            // ---------------------------------------------------------
             $fakta->delete();
 
-            // ---------------------------------------------------------
-            // TAHAP 2: Hapus Data Rasio (Pasti hapus, karena unik per laporan)
-            // ---------------------------------------------------------
             if ($idRasio) {
                 DimLikuiditas::where('id_rasio', $idRasio)->delete();
                 DimSolvabilitas::where('id_rasio', $idRasio)->delete();
@@ -104,9 +132,6 @@ class AdminController extends Controller
                 DimRasio::where('id_rasio', $idRasio)->delete();
             }
 
-            // ---------------------------------------------------------
-            // TAHAP 3: Hapus Perusahaan (Cek apakah masih ada laporan lain milik PT ini?)
-            // ---------------------------------------------------------
             if ($idPerusahaan) {
                 $perusahaanMasihDipakai = FactKinerjaKeuangan::where('id_perusahaan', $idPerusahaan)->exists();
                 if (!$perusahaanMasihDipakai) {
@@ -114,50 +139,82 @@ class AdminController extends Controller
                 }
             }
 
-            // ---------------------------------------------------------
-            // TAHAP 4: Hapus Waktu, Tahun, & Kuartal (Cek Ketergantungan)
-            // ---------------------------------------------------------
             if ($idWaktu) {
-                // Cek 1: Apakah 'Waktu' (Kombinasi Tahun+Kuartal) ini dipakai laporan lain?
                 $waktuMasihDipakai = FactKinerjaKeuangan::where('id_waktu', $idWaktu)->exists();
-
                 if (!$waktuMasihDipakai) {
-                    // Hapus Dimensi Waktu (Jembatan)
                     DimWaktu::where('id_waktu', $idWaktu)->delete();
-
-                    // Cek 2: Setelah Waktu dihapus, apakah 'Tahun' ini masih dipakai di DimWaktu lain?
                     if ($idTahun) {
                         $tahunMasihDipakai = DimWaktu::where('id_tahun', $idTahun)->exists();
-                        if (!$tahunMasihDipakai) {
-                            DimTahun::where('id_tahun', $idTahun)->delete();
-                        }
+                        if (!$tahunMasihDipakai) DimTahun::where('id_tahun', $idTahun)->delete();
                     }
-
-                    // Cek 3: Setelah Waktu dihapus, apakah 'Kuartal' ini masih dipakai di DimWaktu lain?
                     if ($idKuartal) {
                         $kuartalMasihDipakai = DimWaktu::where('id_kuartal', $idKuartal)->exists();
-                        if (!$kuartalMasihDipakai) {
-                            DimKuartal::where('id_kuartal', $idKuartal)->delete();
-                        }
+                        if (!$kuartalMasihDipakai) DimKuartal::where('id_kuartal', $idKuartal)->delete();
                     }
                 }
             }
 
             DB::commit();
-            return redirect()->route('admin.riwayat')->with('success', 'Data berhasil dihapus. Database telah dibersihkan dari data yang tidak terpakai.');
-
+            return redirect()->route('admin.riwayat')->with('success', 'Data berhasil dihapus.');
         } catch (\Exception $e) {
             DB::rollBack();
-            return back()->with('error', 'Gagal menghapus data: ' . $e->getMessage());
+            return back()->with('error', 'Gagal: ' . $e->getMessage());
         }
     }
+    public function laporan(Request $request)
+    {
+        $tahun = DimTahun::orderBy('tahun', 'desc')->get();
+        $kuartal = DimKuartal::orderBy('nomor_kuartal', 'asc')->get();
+        $perusahaan = DimPerusahaan::orderBy('nama_perusahaan', 'asc')->get(); // Tambah ini
 
-    // ==========================================
-    // STORE: LOGIKA PENYIMPANAN UTAMA
-    // ==========================================
+        $query = FactKinerjaKeuangan::with(['waktu.tahun', 'waktu.kuartal', 'perusahaan']);
+
+        // Logika Filter
+        if ($request->filled('tahun')) {
+            $query->whereHas('waktu.tahun', fn($q) => $q->where('tahun', $request->tahun));
+        }
+        if ($request->filled('kuartal')) {
+            $query->whereHas('waktu.kuartal', fn($q) => $q->where('nomor_kuartal', $request->kuartal));
+        }
+        if ($request->filled('perusahaan')) {
+            $query->where('id_perusahaan', $request->perusahaan); // Filter Perusahaan
+        }
+
+        $data = $query->latest('id_fakta')->get();
+
+        return view('admin.laporan', compact('data', 'tahun', 'kuartal', 'perusahaan'));
+    }
+
+    public function exportPdf(Request $request)
+    {
+        $query = FactKinerjaKeuangan::with(['waktu.tahun', 'waktu.kuartal', 'perusahaan']);
+
+        if ($request->filled('tahun')) {
+            $query->whereHas('waktu.tahun', fn($q) => $q->where('tahun', $request->tahun));
+        }
+        if ($request->filled('kuartal')) {
+            $query->whereHas('waktu.kuartal', fn($q) => $q->where('nomor_kuartal', $request->kuartal));
+        }
+        if ($request->filled('perusahaan')) {
+            $query->where('id_perusahaan', $request->perusahaan);
+        }
+
+        $data = $query->get();
+        $pdf = Pdf::loadView('admin.pdf_template', compact('data'))->setPaper('a4', 'landscape');
+        return $pdf->download('Laporan_Kinerja_' . date('Ymd') . '.pdf');
+    }
+
+    public function exportExcel(Request $request)
+    {
+        // Kirim ID Perusahaan ke class Export
+        return Excel::download(
+            new KinerjaExport($request->tahun, $request->kuartal, $request->perusahaan),
+            'Laporan_Kinerja_' . date('Ymd') . '.xlsx'
+        );
+    }
+
     public function store(Request $request)
     {
-        // 1. Validasi Input
         $val = $request->validate([
             'nama_perusahaan'   => 'required|string',
             'kode_saham'        => 'required|string',
@@ -178,7 +235,6 @@ class AdminController extends Controller
         try {
             DB::beginTransaction();
 
-            // 2. Cek/Buat Dimensi (Perusahaan, Tahun, Kuartal, Waktu)
             $perusahaan = DimPerusahaan::firstOrCreate(
                 ['kode_saham' => strtoupper($val['kode_saham'])],
                 ['nama_perusahaan' => $val['nama_perusahaan'], 'sektor' => $val['sektor']]
@@ -194,141 +250,50 @@ class AdminController extends Controller
                 'id_kuartal' => $dimKuartal->id_kuartal,
             ]);
 
-            // 3. CEK DUPLIKASI
             $isDuplicate = FactKinerjaKeuangan::where('id_perusahaan', $perusahaan->id_perusahaan)
                 ->where('id_waktu', $dimWaktu->id_waktu)
                 ->exists();
 
             if ($isDuplicate) {
                 DB::rollBack();
-                return back()
-                    ->with('duplicate_error', "Data Laporan Keuangan <strong>{$val['nama_perusahaan']}</strong> periode <strong>Tahun {$val['tahun_fiskal']} (Q{$val['periode_triwulan']})</strong> sudah tersedia di database.")
-                    ->withInput();
+                return back()->with('duplicate_error', "Data sudah tersedia.")->withInput();
             }
 
-            // 4. PERHITUNGAN RASIO
             $safeDiv = fn($n, $d) => $d != 0 ? ($n / $d) : 0;
             $fmt = fn($n) => number_format($n, 2, ',', '.');
 
-            // a. Likuiditas (Hasil Decimal)
-            // Note: 200% = 2.0, 150% = 1.5, dst.
             $cr = $safeDiv($val['aset_lancar'], $val['kewajiban_lancar']);
             $qr = $safeDiv(($val['aset_lancar'] - $val['persediaan']), $val['kewajiban_lancar']);
             $cashr = $safeDiv($val['kas'], $val['kewajiban_lancar']);
-
-            // b. Solvabilitas (Hasil Decimal)
             $der = $safeDiv($val['total_kewajiban'], $val['ekuitas']);
             $dar = $safeDiv($val['total_kewajiban'], $val['total_aset']);
-
-            // c. Profitabilitas (Hasil Persen - Dikali 100)
             $roa = $safeDiv($val['laba_setelah_pajak'], $val['total_aset']) * 100;
             $roe = $safeDiv($val['laba_setelah_pajak'], $val['ekuitas']) * 100;
             $npm = $safeDiv($val['laba_setelah_pajak'], $val['pendapatan']) * 100;
 
-            // ---------------------------------------------------------
-            // 5. LOGIKA KETERANGAN (STANDARISASI BARU)
-            // ---------------------------------------------------------
+            // Logika Keterangan (Diringkas untuk efisiensi)
+            $ketCR = $cr >= 2.0 ? "Likuid" : ($cr >= 1.0 ? "Waspada" : "Illikuid");
+            $ketQR = $qr >= 1.5 ? "Sangat Baik" : ($qr >= 1.0 ? "Baik" : "Kurang Baik");
+            $ketCash = $cashr >= 0.5 ? "Liquid" : "Illiquid";
+            $ketDER = $der <= 1.0 ? "Sangat Baik" : ($der <= 1.5 ? "Waspada" : "Berisiko");
+            $ketNPM = $npm >= 10 ? "Baik" : "Kurang Baik";
+            $ketROA = $roa >= 6 ? "Baik" : "Kurang Baik";
+            $ketROE = $roe >= 15 ? "Baik" : "Kurang Baik";
 
-            // A. Current Ratio (CR) - Target: >= 200% (2.0)
-            if ($cr >= 2.0) { $ketCR = "Likuid"; }
-            elseif ($cr >= 1.5) { $ketCR = "Baik"; }
-            elseif ($cr >= 1.0) { $ketCR = "Waspada"; }
-            else { $ketCR = "Illikuid"; }
-
-            // B. Quick Ratio (QR) - Target: >= 150% (1.5)
-            if ($qr >= 1.5) { $ketQR = "Sangat Baik"; }
-            elseif ($qr >= 1.0) { $ketQR = "Baik"; }
-            elseif ($qr >= 0.5) { $ketQR = "Cukup"; }
-            else { $ketQR = "Kurang Baik"; }
-
-            // C. Cash Ratio - Target: >= 50% (0.5)
-            if ($cashr >= 0.5) { $ketCash = "Liquid"; }
-            elseif ($cashr >= 0.2) { $ketCash = "Waspada"; }
-            else { $ketCash = "Illiquid"; }
-
-            // D. Debt to Equity Ratio (DER) - Target: <= 90% (0.9)
-            // Note: DER semakin kecil semakin baik, urutan if dibalik atau pakai <=
-            if ($der <= 0.9) { $ketDER = "Sangat Baik"; }
-            elseif ($der <= 1.0) { $ketDER = "Baik"; }
-            elseif ($der <= 1.5) { $ketDER = "Waspada"; }
-            else { $ketDER = "Berisiko Tinggi"; }
-
-            // E. Net Profit Margin (NPM) - Target: >= 20%
-            if ($npm >= 20) { $ketNPM = "Sangat Baik"; }
-            elseif ($npm >= 10) { $ketNPM = "Baik"; }
-            elseif ($npm >= 5) { $ketNPM = "Cukup"; }
-            else { $ketNPM = "Kurang Baik"; }
-
-            // F. Return on Assets (ROA) - Target: >= 10%
-            if ($roa >= 10) { $ketROA = "Sangat Baik"; }
-            elseif ($roa >= 6) { $ketROA = "Baik"; }
-            elseif ($roa >= 3) { $ketROA = "Cukup"; }
-            else { $ketROA = "Kurang Baik"; }
-
-            // G. Return on Equity (ROE) - Target: >= 20%
-            if ($roe >= 20) { $ketROE = "Sangat Baik"; }
-            elseif ($roe >= 15) { $ketROE = "Baik"; }
-            elseif ($roe >= 10) { $ketROE = "Cukup"; }
-            else { $ketROE = "Kurang Baik"; }
-
-
-            // 6. Simpan Dimensi Rasio & Detailnya
             $dimRasio = DimRasio::create(['kategori' => "Analisis {$val['kode_saham']} {$val['tahun_fiskal']} Q{$val['periode_triwulan']}"]);
 
-            // -- Simpan Detail Likuiditas --
-            DimLikuiditas::create([
-                'id_rasio' => $dimRasio->id_rasio,
-                'nama_rasio' => 'Current Ratio',
-                'rumus' => "{$fmt($val['aset_lancar'])} / {$fmt($val['kewajiban_lancar'])}",
-                'keterangan' => $ketCR
-            ]);
-            DimLikuiditas::create([
-                'id_rasio' => $dimRasio->id_rasio,
-                'nama_rasio' => 'Quick Ratio',
-                'rumus' => "({$fmt($val['aset_lancar'])} - {$fmt($val['persediaan'])}) / {$fmt($val['kewajiban_lancar'])}",
-                'keterangan' => $ketQR
-            ]);
-            DimLikuiditas::create([
-                'id_rasio' => $dimRasio->id_rasio,
-                'nama_rasio' => 'Cash Ratio',
-                'rumus' => "{$fmt($val['kas'])} / {$fmt($val['kewajiban_lancar'])}",
-                'keterangan' => $ketCash
-            ]);
+            DimLikuiditas::create(['id_rasio' => $dimRasio->id_rasio, 'nama_rasio' => 'Current Ratio', 'rumus' => "{$fmt($val['aset_lancar'])} / {$fmt($val['kewajiban_lancar'])}", 'keterangan' => $ketCR]);
+            DimLikuiditas::create(['id_rasio' => $dimRasio->id_rasio, 'nama_rasio' => 'Quick Ratio', 'rumus' => "({$fmt($val['aset_lancar'])} - {$fmt($val['persediaan'])}) / {$fmt($val['kewajiban_lancar'])}", 'keterangan' => $ketQR]);
+            DimLikuiditas::create(['id_rasio' => $dimRasio->id_rasio, 'nama_rasio' => 'Cash Ratio', 'rumus' => "{$fmt($val['kas'])} / {$fmt($val['kewajiban_lancar'])}", 'keterangan' => $ketCash]);
+            DimSolvabilitas::create(['id_rasio' => $dimRasio->id_rasio, 'nama_rasio' => 'DER', 'rumus' => "{$fmt($val['total_kewajiban'])} / {$fmt($val['ekuitas'])}", 'keterangan' => $ketDER]);
+            DimProfitabilitas::create(['id_rasio' => $dimRasio->id_rasio, 'nama_rasio' => 'ROA', 'rumus' => "({$fmt($val['laba_setelah_pajak'])} / {$fmt($val['total_aset'])}) x 100%", 'keterangan' => $ketROA]);
+            DimProfitabilitas::create(['id_rasio' => $dimRasio->id_rasio, 'nama_rasio' => 'ROE', 'rumus' => "({$fmt($val['laba_setelah_pajak'])} / {$fmt($val['ekuitas'])}) x 100%", 'keterangan' => $ketROE]);
+            DimProfitabilitas::create(['id_rasio' => $dimRasio->id_rasio, 'nama_rasio' => 'NPM', 'rumus' => "({$fmt($val['laba_setelah_pajak'])} / {$fmt($val['pendapatan'])}) x 100%", 'keterangan' => $ketNPM]);
 
-            // -- Simpan Detail Solvabilitas --
-            DimSolvabilitas::create([
-                'id_rasio' => $dimRasio->id_rasio,
-                'nama_rasio' => 'DER',
-                'rumus' => "{$fmt($val['total_kewajiban'])} / {$fmt($val['ekuitas'])}",
-                'keterangan' => $ketDER
-            ]);
-
-            // -- Simpan Detail Profitabilitas --
-            DimProfitabilitas::create([
-                'id_rasio' => $dimRasio->id_rasio,
-                'nama_rasio' => 'ROA',
-                'rumus' => "({$fmt($val['laba_setelah_pajak'])} / {$fmt($val['total_aset'])}) x 100%",
-                'keterangan' => $ketROA
-            ]);
-            DimProfitabilitas::create([
-                'id_rasio' => $dimRasio->id_rasio,
-                'nama_rasio' => 'ROE',
-                'rumus' => "({$fmt($val['laba_setelah_pajak'])} / {$fmt($val['ekuitas'])}) x 100%",
-                'keterangan' => $ketROE
-            ]);
-            DimProfitabilitas::create([
-                'id_rasio' => $dimRasio->id_rasio,
-                'nama_rasio' => 'NPM',
-                'rumus' => "({$fmt($val['laba_setelah_pajak'])} / {$fmt($val['pendapatan'])}) x 100%",
-                'keterangan' => $ketNPM
-            ]);
-
-            // 7. Simpan ke Tabel FAKTA (Pusat Data)
             FactKinerjaKeuangan::create([
                 'id_perusahaan' => $perusahaan->id_perusahaan,
                 'id_waktu'      => $dimWaktu->id_waktu,
                 'id_rasio'      => $dimRasio->id_rasio,
-                // Data Mentah
                 'kas'               => $val['kas'],
                 'persediaan'        => $val['persediaan'],
                 'aktiva_lancar'     => $val['aset_lancar'],
@@ -338,50 +303,51 @@ class AdminController extends Controller
                 'total_aktiva'      => $val['total_aset'],
                 'pendapatan'        => $val['pendapatan'],
                 'laba_setelah_pajak'=> $val['laba_setelah_pajak'],
-                // Nilai Rasio
-                'current_ratio' => $cr,
-                'quick_ratio'   => $qr,
-                'cash_ratio'    => $cashr,
-                'der'           => $der,
-                'dar'           => $dar,
-                'roa'           => $roa,
-                'roe'           => $roe,
-                'npm'           => $npm,
+                'current_ratio' => $cr, 'quick_ratio' => $qr, 'cash_ratio' => $cashr, 'der' => $der, 'dar' => $dar, 'roa' => $roa, 'roe' => $roe, 'npm' => $npm,
                 'tanggal_pencatatan' => now(),
             ]);
 
             DB::commit();
-            return redirect()->route('admin.riwayat')->with('success', 'Data berhasil disimpan dan dihitung otomatis!');
-
+            return redirect()->route('admin.riwayat')->with('success', 'Data berhasil disimpan!');
         } catch (\Exception $e) {
             DB::rollBack();
-            return back()->withErrors(['msg' => 'Error System: ' . $e->getMessage()])->withInput();
+            return back()->withErrors(['msg' => 'Error: ' . $e->getMessage()])->withInput();
         }
     }
 
     // ==========================================
-    // PARSING EXCEL/PDF (TIDAK BERUBAH)
+    // LOGIKA PARSING SMART ETL (FIXED)
     // ==========================================
     public function parseExcel(Request $request)
     {
-        $request->validate(['file' => 'required|mimes:xlsx,xls,csv,pdf|max:10240']);
+        $request->validate(['file' => 'required|mimes:xlsx,xls,csv,pdf|max:20480']);
 
         try {
             $file = $request->file('file');
             $ext = strtolower($file->getClientOriginalExtension());
-            $dataFound = [];
 
+            // KEYWORDS MAPPING (Diperbarui sesuai permintaan)
             $keywords = [
-                'aset_lancar' => ['total aset lancar', 'jumlah aset lancar', 'total current assets', 'aset lancar'],
-                'kas' => ['kas dan setara kas', 'cash and cash equivalents'],
-                'persediaan' => ['persediaan', 'inventories'],
-                'kewajiban_lancar' => ['total liabilitas jangka pendek', 'jumlah liabilitas jangka pendek', 'total current liabilities', 'utang lancar'],
-                'total_kewajiban' => ['total liabilitas', 'jumlah liabilitas', 'total liabilities', 'total utang'],
-                'ekuitas' => ['total ekuitas', 'jumlah ekuitas', 'total equity'],
-                'total_aset' => ['total aset', 'jumlah aset', 'total assets', 'total aktiva'],
-                'total_liabilitas_ekuitas' => ['total liabilitas dan ekuitas', 'total liabilities and equity'],
-                'pendapatan' => ['pendapatan usaha', 'revenue', 'sales', 'penjualan dan pendapatan usaha'],
-                'laba_setelah_pajak' => ['net of tax', 'setelah pajak', 'total comprehensive income', 'jumlah laba rugi komprehensif', 'laba periode berjalan', 'profit for the period'],
+                'aset_lancar'       => [
+                    'total aset lancar', // Prioritas Utama
+                    'jumlah aset lancar',
+                    'total current assets'
+                ],
+                'kas'               => ['kas dan setara kas', 'cash and cash equivalents'],
+                'persediaan'        => ['persediaan lancar', 'inventories', 'persediaan'],
+                'kewajiban_lancar'  => ['jumlah liabilitas jangka pendek', 'total current liabilities', 'liabilitas lancar'],
+                'total_kewajiban'   => ['jumlah liabilitas', 'total liabilities'],
+                'ekuitas'           => ['jumlah ekuitas', 'total equity'],
+                'total_aset'        => ['jumlah aset', 'total assets'],
+                'pendapatan'        => ['penjualan dan pendapatan usaha', 'revenue', 'sales'],
+                'laba_setelah_pajak'=> [
+                    'total penghasilan komprehensif periode berjalan', // Prioritas
+                    'total rugi komprehensif periode berjalan',
+                    'total comprehensive income for the period',
+                    'total comprehensive loss for the period',
+                    'jumlah laba rugi komprehensif',
+                    'setelah pajak'
+                ],
             ];
 
             if ($ext === 'pdf') {
@@ -390,21 +356,12 @@ class AdminController extends Controller
                 $dataFound = $this->processExcelFile($file, $keywords);
             }
 
-            // Fallback Logic
-            if (empty($dataFound['total_aset']) && !empty($dataFound['total_liabilitas_ekuitas'])) {
-                $dataFound['total_aset'] = $dataFound['total_liabilitas_ekuitas'];
-            }
-            if (empty($dataFound['total_aset'])) {
-                $u = $dataFound['total_kewajiban'] ?? 0;
-                $e = $dataFound['ekuitas'] ?? 0;
-                if ($u > 0 && $e > 0) $dataFound['total_aset'] = $u + $e;
-            }
-            if (empty($dataFound['total_kewajiban'])) {
-                $a = $dataFound['total_aset'] ?? 0;
-                $e = $dataFound['ekuitas'] ?? 0;
-                if ($a > 0 && $e > 0) $dataFound['total_kewajiban'] = $a - $e;
+            // Smart Fallback
+            if (empty($dataFound['total_aset']) && isset($dataFound['total_kewajiban'], $dataFound['ekuitas'])) {
+                $dataFound['total_aset'] = $dataFound['total_kewajiban'] + $dataFound['ekuitas'];
             }
 
+            // Normalisasi Akhir
             foreach ($dataFound as $k => $v) {
                 $dataFound[$k] = ($k !== 'laba_setelah_pajak') ? abs((float)$v) : (float)$v;
             }
@@ -418,33 +375,79 @@ class AdminController extends Controller
 
     private function processPdfFile($file, $keywords)
     {
+        // 1. Tambahkan ini untuk mencegah timeout saat proses parsing berat
+        set_time_limit(180); // Naikkan ke 3 menit khusus untuk fungsi ini
+
         $parser = new PdfParser();
         $pdf = $parser->parseFile($file->getPathname());
-        $lines = explode("\n", $pdf->getText());
+
+        // 2. Optimasi: Ambil hanya halaman tertentu (misal halaman 1-20)
+        // Laporan Keuangan Konsolidasian biasanya ada di halaman awal.
+        $pages = $pdf->getPages();
+        $limitHalaman = min(count($pages), 20); // Batasi maksimal 20 halaman
+
         $found = [];
 
-        foreach ($lines as $line) {
-            $cleanLine = trim($line);
-            if (empty($cleanLine)) continue;
-            $lineLower = strtolower($cleanLine);
+        for ($i = 0; $i < $limitHalaman; $i++) {
+            $text = $pages[$i]->getText();
+            $lines = explode("\n", $text);
 
-            foreach ($keywords as $dbKey => $terms) {
-                foreach ($terms as $term) {
-                    if (str_contains($lineLower, $term)) {
-                        if ($dbKey == 'pendapatan') {
-                            if (str_contains($lineLower, 'cost') || str_contains($lineLower, 'beban')) continue;
-                            if (str_contains($lineLower, 'other') || str_contains($lineLower, 'lain')) continue;
-                            if (str_contains($lineLower, 'finance') || str_contains($lineLower, 'keuangan')) continue;
-                            if (str_contains($lineLower, 'deferred') || str_contains($lineLower, 'ditangguhkan')) continue;
+            foreach ($lines as $line) {
+                $cleanLine = trim($line);
+                if (empty($cleanLine)) continue;
+                $lineLower = strtolower($cleanLine);
+
+                foreach ($keywords as $dbKey => $terms) {
+                    if (isset($found[$dbKey])) continue;
+
+                    foreach ($terms as $term) {
+                        if (str_contains($lineLower, $term)) {
+                            // Filter khusus Aset Lancar & Laba Komprehensif
+                            if ($dbKey == 'total_aset' && (str_contains($lineLower, 'lancar') || str_contains($lineLower, 'tidak'))) continue;
+                            if ($dbKey == 'aset_lancar' && !str_contains($lineLower, 'total')) continue; // Pastikan ambil TOTAL aset lancar
+
+                            if (preg_match_all('/\(?[\d,.]+\)?/', $cleanLine, $matches)) {
+                                foreach ($matches[0] as $potentialNum) {
+                                    $val = $this->cleanNumber($potentialNum);
+
+                                    // Melewati Note/Catatan (angka kecil)
+                                    if (abs($val) > 100) {
+                                        $found[$dbKey] = $val;
+                                        break 2;
+                                    }
+                                }
+                            }
                         }
-                        if ($dbKey == 'aset_lancar' && (str_contains($lineLower, 'tidak lancar') || str_contains($lineLower, 'non'))) continue;
-                        if ($dbKey == 'total_aset' && (str_contains($lineLower, 'tidak lancar') || str_contains($lineLower, 'non'))) continue;
-                        if ($dbKey == 'kewajiban_lancar' && (str_contains($lineLower, 'panjang') || str_contains($lineLower, 'non'))) continue;
-                        if ($dbKey == 'total_kewajiban' && (str_contains($lineLower, 'ekuitas') || str_contains($lineLower, 'equity'))) continue;
+                    }
+                }
+            }
 
-                        if (preg_match_all('/\(?[\d,.]+\)?/', $cleanLine, $matches)) {
-                            foreach ($matches[0] as $potentialNum) {
-                                $val = $this->cleanNumber($potentialNum);
+            // Jika semua keyword sudah ketemu, berhenti parsing halaman selanjutnya
+            if (count($found) >= count($keywords)) break;
+        }
+        return $found;
+    }
+
+    private function processExcelFile($file, $keywords)
+    {
+        $sheets = Excel::toArray([], $file);
+        $found = [];
+
+        foreach ($sheets as $sheet) {
+            foreach ($sheet as $row) {
+                $rowText = strtolower(implode(' ', array_filter($row)));
+
+                foreach ($keywords as $dbKey => $terms) {
+                    if (isset($found[$dbKey])) continue;
+
+                    foreach ($terms as $term) {
+                        if (str_contains($rowText, $term)) {
+                            // Filter khusus
+                            if ($dbKey == 'total_aset' && str_contains($rowText, 'lancar')) continue;
+
+                            // Cari nilai di kolom, lewati angka kecil (Note)
+                            foreach ($row as $cell) {
+                                $val = $this->cleanNumber($cell);
                                 if (abs($val) > 100) {
                                     $found[$dbKey] = $val;
                                     break 2;
@@ -458,65 +461,45 @@ class AdminController extends Controller
         return $found;
     }
 
-    private function processExcelFile($file, $keywords)
-    {
-        $sheets = Excel::toArray([], $file);
-        $found = [];
-
-        foreach ($sheets as $sheet) {
-            foreach ($sheet as $row) {
-                $rowText = implode(' ', $row);
-                $rowLower = strtolower($rowText);
-                $value = 0;
-                for ($i = 1; $i < count($row); $i++) {
-                    $v = $this->cleanNumber($row[$i]);
-                    if (abs($v) > 0) {
-                        $value = $v;
-                        break;
-                    }
-                }
-                if ($value == 0) continue;
-
-                foreach ($keywords as $dbKey => $terms) {
-                    foreach ($terms as $term) {
-                        if (str_contains($rowLower, $term)) {
-                            if ($dbKey == 'pendapatan') {
-                                if (str_contains($rowLower, 'cost') || str_contains($rowLower, 'beban')) continue;
-                                if (str_contains($rowLower, 'other') || str_contains($rowLower, 'lain')) continue;
-                                if (str_contains($rowLower, 'finance') || str_contains($rowLower, 'keuangan')) continue;
-                                if (str_contains($rowLower, 'deferred') || str_contains($rowLower, 'ditangguhkan')) continue;
-                            }
-                            if ($dbKey == 'aset_lancar' && (str_contains($rowLower, 'tidak lancar') || str_contains($rowLower, 'non'))) continue;
-                            if ($dbKey == 'total_aset' && (str_contains($rowLower, 'tidak lancar') || str_contains($rowLower, 'non'))) continue;
-                            if ($dbKey == 'kewajiban_lancar' && (str_contains($rowLower, 'panjang') || str_contains($rowLower, 'non'))) continue;
-                            if ($dbKey == 'total_kewajiban' && (str_contains($rowLower, 'ekuitas') || str_contains($rowLower, 'equity'))) continue;
-
-                            $found[$dbKey] = $value;
-                            break 2;
-                        }
-                    }
-                }
-            }
-        }
-        return $found;
-    }
-
     private function cleanNumber($val)
     {
         if (is_null($val) || $val === '') return 0;
+        if (is_numeric($val)) return (float)$val;
+
         $val = trim((string)$val);
         $isNeg = false;
-        if (str_starts_with($val, '(') && str_ends_with($val, ')')) {
+
+        // Cek jika angka dalam kurung (format akuntansi untuk negatif)
+        if (preg_match('/^\((.*)\)$/', $val, $m)) {
             $isNeg = true;
-            $val = str_replace(['(', ')'], '', $val);
+            $val = $m[1];
         }
-        if (str_contains($val, ',')) {
-            $val = str_replace(',', '', $val);
+
+        // Hapus spasi yang sering muncul saat parsing PDF
+        $val = str_replace(' ', '', $val);
+
+        // Standarisasi pemisah ribuan dan desimal
+        if (str_contains($val, '.') && str_contains($val, ',')) {
+            // Jika format ID 1.234,56 (titik lalu koma)
+            if (strrpos($val, '.') < strrpos($val, ',')) {
+                $val = str_replace('.', '', $val);
+                $val = str_replace(',', '.', $val);
+            } else {
+                // Jika format US 1,234.56
+                $val = str_replace(',', '', $val);
+            }
         } else {
-            $val = str_replace('.', '', $val);
+            // Jika hanya satu jenis pemisah, cek apakah itu desimal (2 angka di belakang)
+            if (preg_match('/[.,]\d{2}$/', $val)) {
+                $val = str_replace(['.', ','], ['#', '.'], $val);
+                $val = str_replace('#', '', $val);
+            } else {
+                // Anggap sebagai pemisah ribuan
+                $val = str_replace(['.', ','], '', $val);
+            }
         }
-        $clean = preg_replace('/[^0-9.]/', '', $val);
-        $num = (float)$clean;
-        return $isNeg ? -$num : $num;
+
+        $clean = preg_replace('/[^0-9.-]/', '', $val);
+        return $isNeg ? -(float)$clean : (float)$clean;
     }
 }

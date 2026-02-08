@@ -320,7 +320,7 @@
     {{-- FOOTER KHUSUS CETAK --}}
     <div class="print-footer">
         Dokumen ini dicetak otomatis dari Sistem Arsip Keuangan pada tanggal {{ date('d F Y H:i') }}. <br>
-        PT Alamtri Resources Indonesia Tbk. | Angka disajikan dalam ribuan Dolar AS.
+        PT Alamtri Minerals Indonesia Tbk. | Angka disajikan dalam ribuan Dolar AS.
     </div>
 </div>
 @endsection
